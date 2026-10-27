@@ -31,7 +31,7 @@ type ResultSummaryRow = {
 
 const round = (n: number, digits = 4) => Math.round(n * 10 ** digits) / 10 ** digits;
 
-function summarize(runId: string) {
+export function summarize(runId: string) {
   const rows = db
     .prepare('SELECT passed, error, output, latency_ms, input_tokens, output_tokens, cost_usd FROM results WHERE run_id = ?')
     .all(runId) as ResultSummaryRow[];

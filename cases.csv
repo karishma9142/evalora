@@ -1,0 +1,5 @@
+input,expected,tags,grader
+What is the capital of France?,Paris,geography;easy,contains
+"Name the capital of Japan, in one word.",Tokyo,geography;easy,contains
+What is 12 times 12?,144,math,contains
+Reply with a JSON object that has a key called name.,,format,json_valid
