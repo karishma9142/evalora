@@ -1,0 +1,32 @@
+name: Prompt quality gate
+
+on:
+  pull_request:
+    paths:
+      - "prompts/**"
+      - "evals/**"
+  workflow_dispatch:
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Evaluate the prompt against the suite
+        env:
+          EVALBOARD_URL: ${{ secrets.EVALBOARD_URL }}
+          EVALBOARD_EMAIL: ${{ secrets.EVALBOARD_EMAIL }}
+          EVALBOARD_PASSWORD: ${{ secrets.EVALBOARD_PASSWORD }}
+        run: >
+          node bin/evalboard.mjs run
+          --suite "Support questions"
+          --target "Support bot"
+          --system-prompt-file prompts/support.txt
+          --baseline latest
+          --fail-under 0.85
+          --max-regressions 0

@@ -1,3 +1,4 @@
+import { assertAllowedUrl } from './urlGuard.js';
 import { ProviderError } from './types.js';
 
 // Shared helper: POST JSON with a timeout and clean error messages.
@@ -7,6 +8,8 @@ export async function postJson(
   body: unknown,
   timeoutMs = 60_000,
 ): Promise<{ json: unknown; latencyMs: number }> {
+  await assertAllowedUrl(url); // blocks private/internal addresses on public servers
+
   const start = performance.now();
 
   let res: Response;
@@ -16,6 +19,7 @@ export async function postJson(
       headers: { 'content-type': 'application/json', ...headers },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
+      redirect: 'error', // a redirect could send us to an internal address after the check
     });
   } catch (err) {
     const name = err instanceof Error ? err.name : '';

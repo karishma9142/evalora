@@ -9,7 +9,8 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "gen-key": "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "seed": "tsx src/seed.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.0",

@@ -1,4 +1,4 @@
-# EvalBoard
+# Evalora
 
 An evals dashboard for any AI. Bring your own API key, pick any model, run test suites,
 score the outputs, and compare runs over time.
@@ -53,3 +53,26 @@ test/                  automated tests
 - API keys encrypted at rest and never returned by any endpoint
 - Every query is filtered by the user's workspace (tenant isolation)
 - Rate limiting on all routes, stricter on register/login
+
+## CLI and CI gate
+
+Run an evaluation from a terminal or a CI pipeline and fail the build when quality drops:
+
+```bash
+export EVALBOARD_EMAIL=you@example.com EVALBOARD_PASSWORD=...
+npm run eval -- run --suite "Support questions" --target "Support bot" \
+  --system-prompt-file prompts/support.txt \
+  --baseline latest --fail-under 0.85 --max-regressions 0
+```
+
+| Option | Meaning |
+|---|---|
+| `--fail-under 0.85` | fail if the pass rate is below 85% |
+| `--baseline <run-id\|latest>` | compare with an earlier run of the same suite |
+| `--max-regressions 0` | fail if any case that passed before now fails |
+| `--max-drop 0.05` | fail if the pass rate drops more than 5 points |
+| `--system-prompt-file` | test a new prompt (a copy of the target is created; the original is untouched) |
+| `--json` | machine-readable output |
+
+Exit codes: `0` passed, `1` a quality gate failed, `2` something broke (bad options, server unreachable, the run failed).
+In GitHub Actions the CLI also writes error annotations and a job summary. See `.github/workflows/eval.yml`.
