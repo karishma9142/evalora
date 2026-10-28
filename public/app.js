@@ -341,6 +341,16 @@ async function runPage(ctx, id) {
     });
   }
 
+  let errorNote = null;
+  if (!running && s.errors > 0) {
+    let first = '';
+    try {
+      const [e] = await api('/runs/' + id + '/results?status=error&limit=1');
+      if (e && e.error) first = ' First error: ' + e.error;
+    } catch { /* the banner is a convenience, never fatal */ }
+    errorNote = h('div', { class: 'banner' }, s.errors + ' of ' + s.total + ' cases hit a provider error instead of getting an answer.' + first + ' Usually the AI is unreachable, or the model name or API key is wrong. Open a case below for details.');
+  }
+
   ctx.mount(
     h('p', {}, h('a', { href: '#/' }, '← All runs')),
     h('div', { class: 'row' },
@@ -348,6 +358,7 @@ async function runPage(ctx, id) {
       badge(run.status)),
     h('p', { class: 'muted small' }, 'Started ' + when(run.startedAt || run.createdAt) + (run.finishedAt ? ' · finished ' + when(run.finishedAt) : '') + (target ? ' · model ' + target.model : '') + (run.repeat > 1 ? ' · repeated ×' + run.repeat : '')),
     run.error ? h('div', { class: 'banner' }, run.error) : null,
+    errorNote,
     running
       ? h('div', { class: 'card' }, h('div', { class: 'row' }, h('strong', {}, 'Running…'), progressText), h('div', { class: 'bar big' }, progressBar),
           h('p', { class: 'muted small' }, 'This page updates by itself. Local models can take a few seconds per test.'))
@@ -358,7 +369,7 @@ async function runPage(ctx, id) {
       stat('Errors', num(s.errors), 'provider problems', s.errors ? 'bad' : ''),
       stat('Avg latency', ms(s.avgLatencyMs), 'p95 ' + ms(s.p95LatencyMs)),
       stat('Tokens', num(s.inputTokens + s.outputTokens), num(s.inputTokens) + ' in · ' + num(s.outputTokens) + ' out'),
-      stat('Cost', usd(s.costUsd), s.costUsd === null ? 'no prices set on target' : null)),
+      stat('Cost', usd(s.costUsd), s.costUsd === null ? 'no cost recorded' : null)),
     running ? null : h('div', {}, h('h3', {}, 'Results'), tabsEl, list));
 
   if (!running) await load();
@@ -596,7 +607,7 @@ async function targetsPage(ctx) {
       credItems.length ? credItems : h('p', { class: 'muted' }, 'No credentials yet.'),
       h('h4', { style: { marginTop: '16px' } }, 'Add a credential'),
       h('div', { class: 'form' }, labeled('Label', cLabel), labeled('Provider', cProvider), cUrlLabel, labeled('API key', cKey),
-        h('div', { class: 'row' }, addCred, preset))),
+        h('div', { class: 'row wide' }, addCred, preset))),
     h('div', { class: 'card' },
       h('h2', {}, 'Targets'),
       h('p', { class: 'muted small' }, 'A target is the AI you are testing: a credential + a model + an optional system prompt.'),
@@ -638,7 +649,7 @@ async function route() {
   renderNav();
   const ctx = {
     alive: () => id === navId,
-    mount: (...nodes) => { if (id === navId) { $app.replaceChildren(...nodes.flat(Infinity)); window.scrollTo(0, 0); } },
+    mount: (...nodes) => { if (id === navId) { $app.replaceChildren(...nodes.flat(Infinity).filter(Boolean)); window.scrollTo(0, 0); } },
   };
   const hash = location.hash || '#/';
   for (const [re, fn] of routes) {

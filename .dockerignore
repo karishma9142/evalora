@@ -1,0 +1,12 @@
+node_modules
+dist
+data
+.env
+.git
+.github
+test
+docs
+bin
+prompts
+*.md
+cases.csv

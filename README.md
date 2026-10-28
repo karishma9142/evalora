@@ -1,78 +1,44 @@
-# Evalora
+# EvalBoard
 
-An evals dashboard for any AI. Bring your own API key, pick any model, run test suites,
-score the outputs, and compare runs over time.
+**An evals dashboard for any AI.** Bring your own API key, pick any model, run a suite of test questions against it, grade the answers automatically, and see exactly what changed between two versions of a prompt or model.
 
-## Run it
+![Runs: pass rate over time and run history](docs/runs.png)
+
+## Why
+
+Changing a prompt or switching models can quietly make an AI worse. EvalBoard makes that visible: the same questions go to both versions, every answer is graded, and the comparison lists the exact cases that regressed, with both answers side by side.
+
+## Features
+
+- **Any AI, your key.** Anthropic, plus any OpenAI-compatible API (OpenAI, Ollama, Groq, ...). Keys are stored encrypted and never shown again.
+- **Test suites.** Create cases by hand or import a CSV. Each case can have graders: `contains`, `exact_match`, `regex`, `json_valid`.
+- **Runs.** One click sends the whole suite, with parallel requests, automatic retries on rate limits, and live progress. Each result keeps the output, tokens, latency, cost, and the reason it passed or failed.
+- **Compare runs.** Pass rate, latency, cost and token changes, plus the cases that regressed or improved.
+- **Repeat runs.** Run each case several times to see how steady the AI is.
+- **Web dashboard** with a trend chart, filterable results, and a compare view.
+
+| Run detail | Compare two runs |
+|---|---|
+| ![Run detail](docs/run-detail.png) | ![Compare](docs/compare.png) |
+
+## Quick start
 
 ```bash
 npm install
-cp .env.example .env     # on Windows: copy .env.example .env
-npm run gen-key          # copy the output into ENCRYPTION_KEY in .env
-npm run dev
-npm test                 # optional: run the tests
+cp .env.example .env
+npm run gen-key
 ```
 
-No Docker, no separate database server. Data lives in `data/evalboard.db` (SQLite).
-
-## Design: bring your own key
-The platform holds no AI key. Users add a Credential (provider + their own key, stored
-encrypted with AES-256-GCM), create a Target (credential + model name), and run suites.
-`ENCRYPTION_KEY` is only used to encrypt those stored user keys (and to derive the JWT secret).
-
-## API so far
-
-| Method | Path | Auth | Purpose |
-|---|---|---|---|
-| GET | /health | no | Server + DB check |
-| POST | /auth/register | no | `{email, password}` returns a JWT |
-| POST | /auth/login | no | `{email, password}` returns a JWT |
-| GET | /me | yes | Current user |
-| POST | /credentials | yes | `{label, provider, apiKey, baseUrl?}` |
-| GET | /credentials | yes | List keys (only `••••last4` is shown) |
-| DELETE | /credentials/:id | yes | Remove a key |
-
-Send the token as `Authorization: Bearer <token>`.
-
-## Project layout
-```
-src/
-  server.ts            starts the server
-  app.ts               builds the Fastify app, plugins, error handling
-  config.ts            validates environment variables
-  db.ts                opens SQLite and creates all tables
-  lib/crypto.ts        AES-256-GCM encryption + scrypt password hashing
-  lib/auth.ts          requireAuth hook (JWT)
-  routes/auth.ts       register, login, /me
-  routes/credentials.ts  add / list / delete API keys
-test/                  automated tests
-```
-
-## Security notes
-- Passwords hashed with scrypt; login errors do not reveal which emails exist
-- API keys encrypted at rest and never returned by any endpoint
-- Every query is filtered by the user's workspace (tenant isolation)
-- Rate limiting on all routes, stricter on register/login
-
-## CLI and CI gate
-
-Run an evaluation from a terminal or a CI pipeline and fail the build when quality drops:
+Paste the printed key into `ENCRYPTION_KEY` in `.env`, then:
 
 ```bash
-export EVALBOARD_EMAIL=you@example.com EVALBOARD_PASSWORD=...
-npm run eval -- run --suite "Support questions" --target "Support bot" \
-  --system-prompt-file prompts/support.txt \
-  --baseline latest --fail-under 0.85 --max-regressions 0
+npm run dev
 ```
 
-| Option | Meaning |
-|---|---|
-| `--fail-under 0.85` | fail if the pass rate is below 85% |
-| `--baseline <run-id\|latest>` | compare with an earlier run of the same suite |
-| `--max-regressions 0` | fail if any case that passed before now fails |
-| `--max-drop 0.05` | fail if the pass rate drops more than 5 points |
-| `--system-prompt-file` | test a new prompt (a copy of the target is created; the original is untouched) |
-| `--json` | machine-readable output |
+Open http://localhost:3000, create an account, add a credential (there is an Ollama preset for a free local model), add a target, import some test cases, and press Start run.
 
-Exit codes: `0` passed, `1` a quality gate failed, `2` something broke (bad options, server unreachable, the run failed).
-In GitHub Actions the CLI also writes error annotations and a job summary. See `.github/workflows/eval.yml`.
+**Try it without any AI:** `npm run seed` creates a demo account with sample runs (`demo@evalboard.dev` / `demo-password-123`). The sample data is synthetic, hand-written, and clearly labelled as such.
+
+Run the tests with `npm test`.
+
+## How it works

@@ -30,7 +30,7 @@ test('seeding creates a demo account whose dashboard data is consistent', async 
   const compare = (await app.inject({ method: 'GET', url: `/runs/compare?a=${runs[2].id}&b=${runs[1].id}`, headers: h })).json();
   assert.equal(compare.counts.regressions, 4);
   assert.equal(compare.counts.improvements, 0);
-  assert.equal(compare.delta.passRate, -0.3333);
+  assert.ok(Math.abs(compare.delta.passRate - -1 / 3) < 0.0002); // rates are rounded to 4 decimals first
 
   // the fix removed those regressions
   const fixed = (await app.inject({ method: 'GET', url: `/runs/compare?a=${runs[2].id}&b=${runs[0].id}`, headers: h })).json();

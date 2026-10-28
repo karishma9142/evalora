@@ -102,3 +102,4 @@ pre { margin: 4px 0 0; padding: 10px; background: var(--code-bg); border-radius:
 .toast { padding: 10px 14px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 4px 16px rgba(0,0,0,.15); max-width: 360px; }
 .toast.error { border-color: var(--bad); color: var(--bad); } .toast.ok { border-color: var(--good); }
 @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } main { padding: 14px; } .top { padding: 10px 14px; gap: 10px; } }
+.form input, .form select { height: 38px; }
