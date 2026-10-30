@@ -3,13 +3,13 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Serves the dashboard from the public/ folder at http://localhost:3000/
+// Serves the landing page at http://localhost:3000/ and the dashboard at http://localhost:3000/app
 // Only these fixed paths are served (no directory serving), so path traversal is impossible.
 const publicDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 
 const files = [
-  { url: '/', file: 'index.html', type: 'text/html; charset=utf-8' },
-  { url: '/welcome', file: 'landing.html', type: 'text/html; charset=utf-8' }, // the public landing page
+  { url: '/', file: 'landing.html', type: 'text/html; charset=utf-8' }, // public landing page
+  { url: '/app', file: 'index.html', type: 'text/html; charset=utf-8' }, // the dashboard
   { url: '/app.js', file: 'app.js', type: 'text/javascript; charset=utf-8' },
   { url: '/style.css', file: 'style.css', type: 'text/css; charset=utf-8' },
 ] as const;
