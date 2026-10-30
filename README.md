@@ -35,7 +35,7 @@ Paste the printed key into `ENCRYPTION_KEY` in `.env`, then:
 npm run dev
 ```
 
-Open http://localhost:3000, create an account, add a credential (there is an Ollama preset for a free local model), add a target, import some test cases, and press Start run.
+Open http://localhost:3000/home, create an account, add a credential (there is an Ollama preset for a free local model), add a target, import some test cases, and press Start run.
 
 **Try it without any AI:** `npm run seed` creates a demo account with sample runs (`demo@evalboard.dev` / `demo-password-123`). The sample data is synthetic, hand-written, and clearly labelled as such.
 
