@@ -26,7 +26,13 @@ export async function postJson(
     if (name === 'TimeoutError' || name === 'AbortError') {
       throw new ProviderError(`Request timed out after ${timeoutMs / 1000}s`);
     }
-    throw new ProviderError(`Could not reach the provider: ${(err as Error).message}`);
+    // Node's fetch only says "fetch failed". The real reason (connection refused, DNS, TLS,
+    // unexpected redirect...) is in err.cause, so include it.
+    const cause = (err as { cause?: { code?: string; message?: string } }).cause;
+    const detail = cause?.code ?? cause?.message;
+    throw new ProviderError(
+      `Could not reach the provider at ${new URL(url).origin}: ${(err as Error).message}${detail ? ` (${detail})` : ''}`,
+    );
   }
 
   const text = await res.text();

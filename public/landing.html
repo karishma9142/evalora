@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EvalBoard: know if your AI got better or worse</title>
+<meta name="description" content="Test any AI model or prompt against your own questions, grade answers by meaning, and catch regressions before your users do.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📊%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#fafaf7; --surface:#ffffff; --ink:#14151a; --muted:#5d6270; --line:#e6e4dc;
+  --brand:#4f46e5; --brand-ink:#ffffff; --good:#12805c; --bad:#c2410c; --soft:#eef0ff; --code:#14151a; --code-ink:#e8e9f0;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e0f14; --surface:#161821; --ink:#f1f2f6; --muted:#9aa0b2; --line:#262a38;
+    --brand:#8b8cff; --brand-ink:#0e0f14; --good:#34d399; --bad:#fb923c; --soft:#1c1f33; --code:#0a0b10; --code-ink:#e8e9f0;
+    color-scheme: dark;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+header.nav{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;gap:24px;height:64px}
+.logo{font-weight:800;font-size:19px;letter-spacing:-.02em;text-decoration:none;display:flex;align-items:center;gap:9px}
+.logo i{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--brand),#c084fc);display:inline-block}
+.nav nav{display:flex;gap:22px;margin-left:auto;align-items:center}
+.nav nav a{text-decoration:none;color:var(--muted);font-size:15px}
+.nav nav a:hover{color:var(--ink)}
+.btn{display:inline-block;padding:11px 20px;border-radius:10px;font-weight:600;font-size:15px;text-decoration:none;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.btn.primary{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn:hover{border-color:var(--brand)}
+.hero{padding:88px 0 56px;text-align:center;background:radial-gradient(60% 50% at 50% 0%,var(--soft),transparent 70%)}
+.pill{display:inline-block;padding:5px 14px;border:1px solid var(--line);border-radius:99px;background:var(--surface);font-size:13px;color:var(--muted);margin-bottom:22px}
+h1{font-size:clamp(36px,6vw,64px);line-height:1.05;letter-spacing:-.035em;margin:0 auto 20px;max-width:15em;font-weight:800}
+h1 em{font-style:normal;background:linear-gradient(90deg,var(--brand),#c084fc);-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{font-size:clamp(17px,2.2vw,20px);color:var(--muted);max-width:42em;margin:0 auto 32px}
+.cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.fine{font-size:13px;color:var(--muted);margin-top:16px}
+/* product preview */
+.shot{margin:56px auto 0;max-width:860px;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:0 30px 60px -30px rgba(40,30,120,.35);overflow:hidden;text-align:left}
+.shot .bar{display:flex;gap:7px;padding:13px 16px;border-bottom:1px solid var(--line)}
+.shot .bar b{width:11px;height:11px;border-radius:50%;background:var(--line)}
+.shot .body{padding:24px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
+.stat{border:1px solid var(--line);border-radius:12px;padding:14px}
+.stat small{display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.stat strong{font-size:26px;letter-spacing:-.02em}
+.good{color:var(--good)} .bad{color:var(--bad)}
+.row{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:14px;padding:13px 0;border-top:1px solid var(--line);font-size:14px;align-items:start}
+.row .q{font-weight:600}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;margin-right:6px}
+.tag.p{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
+.tag.f{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}
+.row p{margin:0;color:var(--muted)}
+section{padding:80px 0}
+.eyebrow{color:var(--brand);font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
+h2{font-size:clamp(28px,4vw,40px);letter-spacing:-.03em;line-height:1.12;margin:0 0 14px}
+.sub{color:var(--muted);max-width:40em;margin:0 0 44px;font-size:18px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:26px}
+.card .ic{width:42px;height:42px;border-radius:12px;background:var(--soft);display:grid;place-items:center;font-size:21px;margin-bottom:16px}
+.card h3{margin:0 0 8px;font-size:18px;letter-spacing:-.01em}
+.card p{margin:0;color:var(--muted);font-size:15px}
+.alt{background:var(--surface);border-block:1px solid var(--line)}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;counter-reset:s}
+.step{counter-increment:s}
+.step::before{content:counter(s);display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--brand);color:var(--brand-ink);font-weight:800;margin-bottom:14px}
+.step h3{margin:0 0 6px}
+.step p{margin:0;color:var(--muted)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:44px;align-items:center}
+.cmp{display:grid;gap:12px}
+.cmp div{border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--surface);font-size:15px}
+.cmp b{display:block;margin-bottom:4px}
+pre{margin:0;background:var(--code);color:var(--code-ink);border-radius:14px;padding:20px 22px;overflow-x:auto;font:13.5px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+pre .c{color:#8a90a6} pre .k{color:#a5b4fc}
+.quick{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.quick h3{margin:0 0 10px;font-size:16px}
+.final{text-align:center;padding:90px 0}
+footer{border-top:1px solid var(--line);padding:30px 0;color:var(--muted);font-size:14px}
+footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+@media (max-width:820px){
+  .grid,.steps,.two,.quick{grid-template-columns:1fr}
+  .stats{grid-template-columns:1fr 1fr}
+  .row{grid-template-columns:1fr}
+  .nav nav a.hide{display:none}
+  .hero{padding-top:56px}
+}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="logo" href="#top"><i></i>EvalBoard</a>
+    <nav>
+      <a class="hide" href="#features">Features</a>
+      <a class="hide" href="#how">How it works</a>
+      <a class="hide" href="#ci">CI gate</a>
+      <a class="btn primary" href="/">Open dashboard</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+<div class="hero">
+  <div class="wrap">
+    <span class="pill">Open source · self-hosted · bring your own API keys</span>
+    <h1>Know if your AI got <em>better</em> or <em>worse</em>.</h1>
+    <p class="lead">EvalBoard runs your own test questions against any AI model or prompt, grades the answers by <strong>meaning</strong> instead of exact wording, and shows you exactly what regressed before your users notice.</p>
+    <div class="cta">
+      <a class="btn primary" href="/">Open the dashboard</a>
+      <a class="btn" href="#quickstart">Run it in 2 minutes</a>
+    </div>
+    <p class="fine">Works with Claude, OpenAI, Ollama, Groq, OpenRouter, vLLM and any OpenAI-compatible API.</p>
+
+    <div class="shot" aria-label="Example of a comparison between two runs">
+      <div class="bar"><b></b><b></b><b></b></div>
+      <div class="body">
+        <div class="stats">
+          <div class="stat"><small>Pass rate</small><strong class="good">92.3%</strong></div>
+          <div class="stat"><small>Change vs baseline</small><strong class="good">+7.7 pts</strong></div>
+          <div class="stat"><small>Regressions</small><strong class="bad">1</strong></div>
+          <div class="stat"><small>Avg latency</small><strong>0.84 s</strong></div>
+        </div>
+        <div class="row">
+          <div class="q"><span class="tag p">PASS</span>Where is my order?</div>
+          <p><strong>Expected:</strong> Please provide your order ID so I can help check your order status.</p>
+          <p><strong>Answer:</strong> I’m unable to locate your order without the order number. Could you provide it?</p>
+        </div>
+        <div class="row">
+          <div class="q"><span class="tag f">FAIL</span>Can I get a refund?</div>
+          <p><strong>Expected:</strong> Refunds are allowed within 7 days if the item is unused.</p>
+          <p><strong>Answer:</strong> Refunds are allowed within 30 days, even if used. <em>Judge: the time limit and condition changed.</em></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section id="features">
+  <div class="wrap">
+    <div class="eyebrow">Features</div>
+    <h2>Everything you need to trust your prompts</h2>
+    <p class="sub">Stop eyeballing chat answers. Turn your expectations into a repeatable test suite.</p>
+    <div class="grid">
+      <div class="card"><div class="ic">🧠</div><h3>Grades by meaning</h3><p>An AI judge compares what both answers mean. “Order number” and “order ID” are the same request. A changed number or condition is not.</p></div>
+      <div class="card"><div class="ic">🔍</div><h3>Regression finder</h3><p>Compare two runs side by side. See which cases passed before and fail now, with both outputs and the reason.</p></div>
+      <div class="card"><div class="ic">🧪</div><h3>Six kinds of checks</h3><p>LLM judge, keywords, contains, exact match, regex and JSON validity. Combine them on a single case.</p></div>
+      <div class="card"><div class="ic">🚦</div><h3>CI quality gate</h3><p>Fail the pull request when the pass rate drops or any case regresses. Results land in your GitHub summary.</p></div>
+      <div class="card"><div class="ic">💸</div><h3>Cost and latency</h3><p>Every run reports tokens, p95 latency and cost, so you can compare a cheaper model with confidence.</p></div>
+      <div class="card"><div class="ic">🔐</div><h3>Your keys stay yours</h3><p>API keys are encrypted with AES-256-GCM and never sent back. Private network addresses are blocked on public servers.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="how">
+  <div class="wrap">
+    <div class="eyebrow">How it works</div>
+    <h2>From idea to verdict in three steps</h2>
+    <p class="sub">No code required. Use the dashboard, a CSV file, or the API.</p>
+    <div class="steps">
+      <div class="step"><h3>Connect your AI</h3><p>Add an API key and a model with an optional system prompt. That is a target.</p></div>
+      <div class="step"><h3>Import your cases</h3><p>Upload a CSV of questions and the answers you expect. Rows with an expected answer are judged by meaning automatically.</p></div>
+      <div class="step"><h3>Run and compare</h3><p>Start a run, then compare it with the last one to see exactly what improved and what broke.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap two">
+    <div>
+      <div class="eyebrow">Semantic judging</div>
+      <h2>Different words. Same answer.</h2>
+      <p class="sub" style="margin-bottom:0">A literal check fails a perfectly good reply. The judge writes down what each side means first, then decides, so you can read its reasoning on every case.</p>
+    </div>
+    <div class="cmp">
+      <div><b class="good">✓ Passes</b>“Could you provide your order number or purchase email?” matches “Please provide your order ID.”</div>
+      <div><b class="bad">✗ Fails</b>“Refunds within 30 days” does not match “Refunds within 7 days.”</div>
+      <div><b>Built-in judge check</b>Test a model on six known examples before you trust it to grade your suite.</div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="ci">
+  <div class="wrap two">
+    <div>
+      <div class="eyebrow">CI gate</div>
+      <h2>Block bad prompts before they ship</h2>
+      <p class="sub" style="margin-bottom:0">Run the same suite on every pull request. The CLI exits with a failing code when quality drops, so a regression can never merge quietly.</p>
+    </div>
+<pre><span class="c"># fails the build if quality drops</span>
+<span class="k">node</span> bin/evalboard.mjs run \
+  --suite "Support questions" \
+  --target "Support bot" \
+  --system-prompt-file prompts/support.txt \
+  --baseline latest \
+  --fail-under 0.85 \
+  --max-regressions 0</pre>
+  </div>
+</section>
+
+<section id="quickstart">
+  <div class="wrap">
+    <div class="eyebrow">Quick start</div>
+    <h2>Running in two minutes</h2>
+    <p class="sub">You need Node.js 22 or newer. Docker works too.</p>
+    <div class="quick">
+<div>
+<h3>Run locally</h3>
+<pre><span class="c"># install and set an encryption key</span>
+npm install
+cp .env.example .env
+npm run gen-key   <span class="c"># paste into ENCRYPTION_KEY</span>
+
+<span class="c"># optional: load sample data</span>
+npm run seed
+
+<span class="c"># start, then open localhost:3000</span>
+npm run dev</pre>
+</div>
+<div>
+<h3>Or use Docker</h3>
+<pre>docker build -t evalboard .
+docker run -p 3000:3000 \
+  -e ENCRYPTION_KEY=$(openssl rand -hex 32) \
+  -v evalboard-data:/data \
+  evalboard</pre>
+</div>
+    </div>
+    <p class="fine" style="text-align:left">Keep the same ENCRYPTION_KEY forever. If it changes, saved API keys can no longer be decrypted. Demo login after seeding: demo@evalboard.dev / demo-password-123.</p>
+  </div>
+</section>
+
+<div class="final alt" style="background:var(--surface);border-top:1px solid var(--line)">
+  <div class="wrap">
+    <h2>Ship prompt changes with confidence</h2>
+    <p class="sub" style="margin:0 auto 28px">Measure it, compare it, gate it.</p>
+    <div class="cta"><a class="btn primary" href="/">Open the dashboard</a><a class="btn" href="https://github.com/karishma9142/evalora">View on GitHub</a></div>
+  </div>
+</div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© EvalBoard</span>
+    <span>Measure, compare and track the quality of any AI.</span>
+  </div>
+</footer>
+</body>
+</html>

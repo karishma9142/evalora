@@ -208,11 +208,20 @@ async function runsPage(ctx) {
   suiteSel.addEventListener('change', () => { runsFilter = suiteSel.value; route(); });
   const targetSel = sel(targets.map((t) => [t.id, t.name]), targets[0].id);
   const repeat = inp('number', '1', { min: 1, max: 10, value: 1 });
+  const judgeSel = sel([['', 'None (only needed for llm_judge cases)']].concat(targets.map((t) => [t.id, t.name])), '');
+  const judgeNote = h('p', { class: 'muted small' });
+  const updateJudgeNote = () => {
+    judgeNote.textContent = judgeSel.value && judgeSel.value === targetSel.value
+      ? 'The same model grading its own answers tends to be too generous. A different (ideally stronger) judge is more reliable.'
+      : '';
+  };
+  judgeSel.addEventListener('change', updateJudgeNote);
+  targetSel.addEventListener('change', updateJudgeNote);
   const startBtn = h('button', { class: 'primary' }, 'Start run');
   startBtn.addEventListener('click', () => guarded(async () => {
     startBtn.disabled = true;
     try {
-      const r = await api('/runs', { method: 'POST', body: { suiteId: suiteSel.value, targetId: targetSel.value, repeat: Number(repeat.value) || 1 } });
+      const r = await api('/runs', { method: 'POST', body: { suiteId: suiteSel.value, targetId: targetSel.value, repeat: Number(repeat.value) || 1, judgeTargetId: judgeSel.value || undefined } });
       go('#/run/' + r.id);
     } finally { startBtn.disabled = false; }
   }));
@@ -249,7 +258,9 @@ async function runsPage(ctx) {
       h('h2', {}, 'Start a run'),
       h('div', { class: 'form' },
         labeled('Suite', suiteSel), labeled('Target (the AI to test)', targetSel), labeled('Repeat each case', repeat),
-        h('div', {}, startBtn))),
+        labeled('Judge (grades open-ended answers)', judgeSel),
+        h('div', {}, startBtn)),
+      judgeNote),
     h('div', { class: 'card' },
       h('h2', {}, 'Pass rate over time'),
       h('p', { class: 'muted small' }, 'For the suite selected above. Each dot is one completed run.'),
@@ -309,7 +320,7 @@ function resultItem(r, repeat) {
       r.expected ? field('Expected', r.expected) : null,
       r.error ? field('Error', r.error) : null,
       (r.graderResults || []).map((g) =>
-        h('p', { class: 'grader ' + (g.skipped ? 'skip' : g.passed ? 'ok' : 'bad') }, g.type + ': ' + g.reason)),
+        [h('p', { class: 'grader ' + (g.skipped ? 'skip' : g.passed ? 'ok' : 'bad') }, g.type + ': ' + g.reason), g.detail ? field('Judge reply', g.detail) : null]),
       h('p', { class: 'muted small' }, num(r.inputTokens) + ' tokens in · ' + num(r.outputTokens) + ' out · ' + usd(r.costUsd))));
 }
 
@@ -499,7 +510,7 @@ async function suitesPage(ctx) {
       h('summary', { style: { cursor: 'pointer' } }, h('strong', {}, s.name), h('span', { class: 'muted' }, '  ·  ' + s.caseCount + ' cases' + (s.description ? '  ·  ' + s.description : ''))),
       h('div', { style: { marginTop: '12px' } },
         h('h4', {}, 'Import from CSV'),
-        h('p', { class: 'muted small' }, 'Columns: input (required), expected, context, tags (separate with ;), grader (contains, exact_match or json_valid).'),
+        h('p', { class: 'muted small' }, 'Columns: input (required), expected, keywords (separate with ;), rubric, context, tags (separate with ;), grader (keywords, llm_judge, contains, exact_match or json_valid; combine with ;).'),
         csv, h('div', { class: 'row', style: { marginTop: '8px' } }, file, importBtn, h('span', { class: 'grow' }), del),
         h('h4', { style: { marginTop: '16px' } }, 'Cases'), casesBox));
     let loaded = false;
@@ -587,6 +598,21 @@ async function targetsPage(ctx) {
       finally { send.disabled = false; }
     }));
     const box = h('div', { class: 'hidden', style: { width: '100%' } }, h('div', { class: 'row' }, prompt, send), out);
+    const judgeOut = h('div', { class: 'hidden', style: { width: '100%' } });
+    const judgeBtn = h('button', {}, 'Judge check');
+    judgeBtn.addEventListener('click', () => guarded(async () => {
+      judgeOut.classList.remove('hidden');
+      judgeBtn.disabled = true;
+      judgeOut.replaceChildren(h('p', { class: 'muted small' }, 'Testing this model as a judge on 6 examples. A local model can take a minute…'));
+      try {
+        const r = await api('/targets/' + t.id + '/judge-check', { method: 'POST', body: {} });
+        judgeOut.replaceChildren(
+          h('p', { class: r.rating === 'usable' ? 'good' : r.rating === 'unreliable' ? 'warn' : 'bad' }, r.correct + ' of ' + r.total + ' correct. ' + r.message),
+          ...r.results.map((x) => h('p', { class: 'grader ' + (x.correct ? 'ok' : 'bad') },
+            x.label + ': should ' + (x.shouldPass ? 'pass' : 'fail') + ', the judge said ' + (x.verdict === 'invalid' ? 'something unreadable ("' + x.raw.slice(0, 80) + '")' : x.verdict))));
+      } catch (e) { judgeOut.replaceChildren(h('p', { class: 'error' }, e.message)); }
+      finally { judgeBtn.disabled = false; }
+    }));
     const testBtn = h('button', {}, 'Test');
     testBtn.addEventListener('click', () => box.classList.toggle('hidden'));
     const del = h('button', { class: 'danger' }, 'Delete');
@@ -597,7 +623,7 @@ async function targetsPage(ctx) {
     }));
     return h('div', { class: 'item' },
       h('div', { class: 'grow' }, h('strong', {}, t.name), h('div', { class: 'muted small' }, t.model + ' · ' + (cred ? cred.label : '?') + (t.systemPrompt ? ' · prompt: ' + t.systemPrompt.slice(0, 60) : ''))),
-      testBtn, del, box);
+      testBtn, judgeBtn, del, box, judgeOut);
   });
 
   ctx.mount(

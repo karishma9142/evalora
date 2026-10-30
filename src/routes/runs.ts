@@ -93,6 +93,7 @@ export async function runRoutes(app: FastifyInstance) {
         targetId: z.string(),
         repeat: z.number().int().min(1).max(10).default(1),
         concurrency: z.number().int().min(1).max(10).default(3),
+        judgeTargetId: z.string().optional(),
       })
       .parse(request.body);
     const { workspaceId } = request.user;
@@ -101,6 +102,14 @@ export async function runRoutes(app: FastifyInstance) {
     if (!suite) return reply.code(404).send({ error: 'suite_not_found' });
     const target = db.prepare('SELECT id FROM targets WHERE id = ? AND workspace_id = ?').get(body.targetId, workspaceId);
     if (!target) return reply.code(404).send({ error: 'target_not_found' });
+    if (body.judgeTargetId) {
+      const judge = db.prepare('SELECT id FROM targets WHERE id = ? AND workspace_id = ?').get(body.judgeTargetId, workspaceId);
+      if (!judge) return reply.code(404).send({ error: 'judge_not_found' });
+    }
+    const needsJudge = db.prepare("SELECT 1 FROM test_cases WHERE suite_id = ? AND grader_config LIKE '%\"llm_judge\"%' LIMIT 1").get(body.suiteId);
+    if (needsJudge && !body.judgeTargetId) {
+      return reply.code(400).send({ error: 'judge_required', message: 'This suite has llm_judge cases. Pick a judge: another AI that grades the answers.' });
+    }
 
     const cases = db.prepare('SELECT id FROM test_cases WHERE suite_id = ? ORDER BY rowid').all(body.suiteId) as { id: string }[];
     if (cases.length === 0) {
@@ -114,10 +123,11 @@ export async function runRoutes(app: FastifyInstance) {
     // Create the run plus one empty "pending" result row per execution, all at once
     const runId = randomUUID();
     db.transaction(() => {
-      db.prepare("INSERT INTO runs (id, suite_id, target_id, status, repeat) VALUES (?, ?, ?, 'queued', ?)").run(
+      db.prepare("INSERT INTO runs (id, suite_id, target_id, judge_target_id, status, repeat) VALUES (?, ?, ?, ?, 'queued', ?)").run(
         runId,
         body.suiteId,
         body.targetId,
+        body.judgeTargetId ?? null,
         body.repeat,
       );
       const insert = db.prepare('INSERT INTO results (id, run_id, test_case_id, attempt) VALUES (?, ?, ?, ?)');

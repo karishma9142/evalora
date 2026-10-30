@@ -24,12 +24,20 @@ const graderSchema = z.discriminatedUnion('type', [
     pattern: z.string().min(1).max(500),
     flags: z.string().regex(/^[imsu]*$/).max(4).optional(),
   }),
+  // output must contain the key phrases (wording around them does not matter)
+  z.object({
+    type: z.literal('keywords'),
+    keywords: z.array(z.string().min(1).max(200)).min(1).max(50),
+    minMatch: z.number().min(0).max(1).optional(),
+    caseSensitive: z.boolean().optional(),
+  }),
   // output must be valid JSON
   z.object({ type: z.literal('json_valid') }),
   // another AI scores the output against a rubric
   z.object({
     type: z.literal('llm_judge'),
-    rubric: z.string().min(1).max(5000),
+    rubric: z.string().min(1).max(5000).optional(),
+    scale: z.enum(['yesno', 'score']).optional(),
     passScore: z.number().min(0).max(1).optional(),
   }),
 ]);
@@ -51,6 +59,9 @@ const caseSchema = z
           path: ['graders', i],
           message: `${g.type} needs an "expected" value (or a "value" for contains)`,
         });
+      }
+      if (g.type === 'llm_judge' && !g.rubric?.trim() && !c.expected?.trim()) {
+        ctx.addIssue({ code: 'custom', path: ['graders', i], message: 'llm_judge needs a "rubric" or an "expected" reference answer' });
       }
       if (g.type === 'regex') {
         try {
@@ -131,7 +142,7 @@ function insertCases(suiteId: string, cases: CaseInput[]) {
 }
 
 // CSV "grader" column shorthand: only graders that need no extra settings
-const SIMPLE_GRADERS = ['exact_match', 'contains', 'json_valid'] as const;
+const SIMPLE_GRADERS = ['exact_match', 'contains', 'keywords', 'llm_judge', 'json_valid'] as const;
 
 const idParam = z.object({ id: z.string() });
 
@@ -234,7 +245,8 @@ export async function suiteRoutes(app: FastifyInstance) {
   });
 
   // ----- CSV import -----
-  // Columns: input (required), expected, context, tags (separate with ; or |), grader (e.g. contains)
+  // Columns: input (required), expected, context, tags (separate with ; or |), grader (e.g. contains).
+  // If grader is blank and expected is filled in, the case is graded by meaning (llm_judge).
   app.post('/suites/:id/import-csv', async (request, reply) => {
     const { id } = idParam.parse(request.params);
     const suite = findSuite(id, request.user.workspaceId);
@@ -270,7 +282,10 @@ export async function suiteRoutes(app: FastifyInstance) {
       const rowNumber = i + 2; // header is row 1
       if (row.every((cell) => cell.trim() === '')) return; // skip blank lines
 
-      const graderNames = col(row, 'grader').split(/[;|]/).map((g) => g.trim()).filter(Boolean);
+      let graderNames = col(row, 'grader').split(/[;|]/).map((g) => g.trim()).filter(Boolean);
+      // A row with an expected answer and no grader is checked by MEANING (llm_judge), not by exact
+      // wording. Literal graders (contains, exact_match...) must be asked for in the grader column.
+      if (graderNames.length === 0 && col(row, 'expected')) graderNames = ['llm_judge'];
       const unknown = graderNames.find((g) => !(SIMPLE_GRADERS as readonly string[]).includes(g));
       if (unknown) {
         errors.push({ row: rowNumber, message: `Unknown grader "${unknown}". Use: ${SIMPLE_GRADERS.join(', ')}` });
@@ -282,7 +297,13 @@ export async function suiteRoutes(app: FastifyInstance) {
         expected: col(row, 'expected') || undefined,
         context: col(row, 'context') || undefined,
         tags: col(row, 'tags').split(/[;|]/).map((t) => t.trim()).filter(Boolean),
-        graders: graderNames.map((type) => ({ type })),
+        graders: graderNames.map((type) =>
+          type === 'keywords'
+            ? { type, keywords: col(row, 'keywords').split(/[;|]/).map((k) => k.trim()).filter(Boolean) }
+            : type === 'llm_judge' && col(row, 'rubric')
+              ? { type, rubric: col(row, 'rubric') }
+              : { type },
+        ),
       });
       if (!parsed.success) {
         const msg = parsed.error.issues.map((x) => `${x.path.map(String).join('.')}: ${x.message}`).join('; ');

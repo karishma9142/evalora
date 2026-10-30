@@ -14,6 +14,7 @@ import { suiteRoutes } from './routes/suites.js';
 import { runRoutes } from './routes/runs.js';
 import { compareRoutes } from './routes/compare.js';
 import { dashboardRoutes } from './dashboard.js';
+import { judgeCheckRoutes } from './routes/judgeCheck.js';
 
 export function buildApp() {
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test' });
@@ -48,6 +49,7 @@ export function buildApp() {
   app.register(suiteRoutes);
   app.register(runRoutes);
   app.register(compareRoutes);
+  app.register(judgeCheckRoutes);
   app.register(dashboardRoutes); // the web dashboard at /
 
   return app;
